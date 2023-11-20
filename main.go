@@ -37,6 +37,7 @@ func (p *Player) IdleAnimation(screen *ebiten.Image) {
 
 	if p.direction == "LEFT" {
 		op.GeoM.Scale(-1, 1)
+		op.GeoM.Translate(float64(p.idleAnim.frameWidth), 0)
 	} else if p.direction == "RIGHT" {
 		op.GeoM.Scale(1, 1)
 	}
@@ -53,7 +54,7 @@ func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
 	p.posX -= .5
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(-1, 1) // Probably something wrong with this
-	op.GeoM.Translate(p.posX, p.posY)
+	op.GeoM.Translate(p.posX+float64(p.walkAnim.frameWidth), p.posY)
 
 	i := (game.count / p.walkAnim.frameFrequency) % p.walkAnim.frameCount
 	sx, sy := p.walkAnim.frameOX+i*p.walkAnim.frameWidth, p.walkAnim.frameOY
@@ -96,11 +97,6 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	xCoord := strconv.FormatFloat(g.player.posX, 'f', -1, 64)
-	yCoord := strconv.FormatFloat(g.player.posY, 'f', -1, 64)
-	dbgXY := fmt.Sprintf("(%s, %s)", xCoord, yCoord)
-	ebitenutil.DebugPrintAt(screen, dbgXY, int(g.player.posX)+16, int(g.player.posY)-16)
-
 	g.dbgMode(screen)
 	g.player.IdleAnimation(screen)
 
@@ -126,6 +122,11 @@ func (g *Game) dbgMode(screen *ebiten.Image) {
 	if g.dbg {
 		for _, entity := range g.entities {
 			vector.DrawFilledRect(screen, float32(entity.posX), float32(entity.posY), 16, 16, color.RGBA{100, 0, 0, 0}, false)
+
+			xCoord := strconv.FormatFloat(entity.posX, 'f', -1, 64)
+			yCoord := strconv.FormatFloat(entity.posY, 'f', -1, 64)
+			dbgXY := fmt.Sprintf("(%s, %s)", xCoord, yCoord)
+			ebitenutil.DebugPrintAt(screen, dbgXY, int(entity.posX)+16, int(entity.posY)-16)
 		}
 	}
 }
