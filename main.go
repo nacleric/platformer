@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -18,7 +19,7 @@ type SpriteData struct {
 	frameWidth     int // Size of Sprite frame (most likely 16x16)
 	frameHeight    int
 	frameCount     int // Total number of columns for specific row
-	frameFrequency int
+	frameFrequency int // How often frames transition
 }
 
 type Player struct {
@@ -28,7 +29,7 @@ type Player struct {
 	vY        float64
 	walkAnim  SpriteData
 	idleAnim  SpriteData
-	direction string // (LEFT, RIGHT)
+	direction string // (LEFT, RIGHT) need to find a better way to represent enums
 }
 
 func (p *Player) IdleAnimation(screen *ebiten.Image) {
@@ -95,7 +96,11 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	// g.player
+	xCoord := strconv.FormatFloat(g.player.posX, 'f', -1, 64)
+	yCoord := strconv.FormatFloat(g.player.posY, 'f', -1, 64)
+	dbgXY := fmt.Sprintf("(%s, %s)", xCoord, yCoord)
+	ebitenutil.DebugPrintAt(screen, dbgXY, int(g.player.posX)+16, int(g.player.posY)-16)
+
 	g.dbgMode(screen)
 	g.player.IdleAnimation(screen)
 
@@ -119,15 +124,12 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func (g *Game) dbgMode(screen *ebiten.Image) {
 	if g.dbg {
-		// fmt.Println(g.entities)
 		for _, entity := range g.entities {
-			fmt.Println(entity.posX)
 			vector.DrawFilledRect(screen, float32(entity.posX), float32(entity.posY), 16, 16, color.RGBA{100, 0, 0, 0}, false)
 		}
 	}
 }
 
-// One time initilizations like assets in here
 func init() {
 	var err error
 	chickenSpriteSheet, _, err = ebitenutil.NewImageFromFile("./assets/Characters/chicken_sprites.png")
