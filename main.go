@@ -13,11 +13,12 @@ import (
 )
 
 type SpriteData struct {
-	frameOX     int // column of spritesheet Ex: 0 is first col 16 is 2nd col
-	frameOY     int // row of spritesheet Ex: 16 is 2nd row
-	frameWidth  int // Size of Sprite frame (most likely 16x16)
-	frameHeight int
-	frameCount  int // Total number of columns for specific row
+	frameOX        int // column of spritesheet Ex: 0 is first col 16 is 2nd col
+	frameOY        int // row of spritesheet Ex: 16 is 2nd row
+	frameWidth     int // Size of Sprite frame (most likely 16x16)
+	frameHeight    int
+	frameCount     int // Total number of columns for specific row
+	frameFrequency int
 }
 
 type Player struct {
@@ -41,7 +42,7 @@ func (p *Player) IdleAnimation(screen *ebiten.Image) {
 
 	op.GeoM.Translate(p.posX, p.posY)
 
-	i := (game.count / 8) % p.idleAnim.frameCount
+	i := (game.count / p.idleAnim.frameFrequency) % p.idleAnim.frameCount
 	sx, sy := p.idleAnim.frameOX+i*p.idleAnim.frameWidth, p.idleAnim.frameOY
 	screen.DrawImage(chickenSpriteSheet.SubImage(image.Rect(sx, sy, sx+p.idleAnim.frameWidth, sy+p.idleAnim.frameHeight)).(*ebiten.Image), op)
 
@@ -53,7 +54,7 @@ func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
 	op.GeoM.Scale(-1, 1) // Probably something wrong with this
 	op.GeoM.Translate(p.posX, p.posY)
 
-	i := (game.count / 8) % p.walkAnim.frameCount
+	i := (game.count / p.walkAnim.frameFrequency) % p.walkAnim.frameCount
 	sx, sy := p.walkAnim.frameOX+i*p.walkAnim.frameWidth, p.walkAnim.frameOY
 	screen.DrawImage(chickenSpriteSheet.SubImage(image.Rect(sx, sy, sx+p.walkAnim.frameWidth, sy+p.walkAnim.frameHeight)).(*ebiten.Image), op)
 }
@@ -64,7 +65,7 @@ func (p *Player) RightWalkAnimation(screen *ebiten.Image) {
 	op.GeoM.Scale(1, 1)
 	op.GeoM.Translate(p.posX, p.posY)
 
-	i := (game.count / 8) % p.walkAnim.frameCount
+	i := (game.count / p.walkAnim.frameFrequency) % p.walkAnim.frameCount
 	sx, sy := p.walkAnim.frameOX+i*p.walkAnim.frameWidth, p.walkAnim.frameOY
 	screen.DrawImage(chickenSpriteSheet.SubImage(image.Rect(sx, sy, sx+p.walkAnim.frameWidth, sy+p.walkAnim.frameHeight)).(*ebiten.Image), op)
 }
@@ -135,8 +136,8 @@ func init() {
 	}
 
 	var entities []*Player
-	playerWalkAnimationData := SpriteData{0, 16, 16, 16, 4}
-	playerIdleAnimationData := SpriteData{0, 0, 16, 16, 2}
+	playerWalkAnimationData := SpriteData{0, 16, 16, 16, 4, 8}
+	playerIdleAnimationData := SpriteData{0, 0, 16, 16, 2, 64}
 	p := Player{50, 50, 0, 0, playerWalkAnimationData, playerIdleAnimationData, "RIGHT"}
 	entities = append(entities, &p)
 	game = &Game{player: &p, dbg: true, entities: entities}
