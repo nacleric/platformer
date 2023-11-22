@@ -60,10 +60,10 @@ func DrawPlayer(spritesheet *ebiten.Image) Player {
 func (p *Player) IdleAnimation(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	if p.direction == "LEFT" {
-		op.GeoM.Scale(-1, 1)
+		op.GeoM.Scale(spriteScale*-1, spriteScale)
 		op.GeoM.Translate(float64(p.idleAnim.sc.frameWidth), 0)
 	} else if p.direction == "RIGHT" {
-		op.GeoM.Scale(1, 1)
+		op.GeoM.Scale(spriteScale, spriteScale)
 	}
 
 	op.GeoM.Translate(p.posX, p.posY)
@@ -80,7 +80,7 @@ func (p *Player) IdleAnimation(screen *ebiten.Image) {
 func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
 	p.posX -= .5
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(-1, 1)
+	op.GeoM.Scale(spriteScale*-1, spriteScale)
 	op.GeoM.Translate(p.posX+float64(p.walkAnim.sc.frameWidth), p.posY)
 
 	cellX := p.walkAnim.sc.cellX
@@ -94,7 +94,7 @@ func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
 func (p *Player) RightWalkAnimation(screen *ebiten.Image) {
 	p.posX += .5
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(1, 1)
+	op.GeoM.Scale(spriteScale, spriteScale)
 	op.GeoM.Translate(p.posX, p.posY)
 
 	cellX := p.walkAnim.sc.cellX
@@ -135,10 +135,9 @@ func drawGround(screen *ebiten.Image) {
 	x1, y1 := x0+sc.frameWidth, y0+sc.frameHeight
 
 	numberOfTiles := screenWidth / sc.frameWidth
-	fmt.Println(numberOfTiles)
 	for i := 0; i < numberOfTiles; i++ {
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(1, 1)
+		op.GeoM.Scale(spriteScale, spriteScale)
 		op.GeoM.Translate(float64(i)*float64(sc.frameWidth), screenHeight-float64(sc.frameHeight))
 		screen.DrawImage(groundSpritesheet.SubImage(image.Rect(x0, y0, x1, y1)).(*ebiten.Image), op)
 	}
@@ -191,6 +190,7 @@ var (
 	game               *Game
 	chickenSpritesheet *ebiten.Image
 	groundSpritesheet  *ebiten.Image
+	spriteScale        = float64(1) // Default 1
 )
 
 func LoadSpritesheets() {
