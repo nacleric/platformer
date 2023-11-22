@@ -136,10 +136,10 @@ func drawGround(screen *ebiten.Image) {
 
 	numberOfTiles := screenWidth / sc.frameWidth
 	fmt.Println(numberOfTiles)
-	for i := 0; i <= numberOfTiles; i++ {
+	for i := 0; i < numberOfTiles; i++ {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(1, 1)
-		op.GeoM.Translate(float64(i)*float64(numberOfTiles), screenHeight-float64(sc.frameHeight))
+		op.GeoM.Translate(float64(i)*float64(sc.frameWidth), screenHeight-float64(sc.frameHeight))
 		screen.DrawImage(groundSpritesheet.SubImage(image.Rect(x0, y0, x1, y1)).(*ebiten.Image), op)
 	}
 }
