@@ -34,17 +34,12 @@ func loadAsset() *ebiten.Image {
 }
 */
 
-/*
-func drawPlayer(screen *ebiten.Image, p Player) {
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(playerScaleWidth, playerScaleHeight)
-	op.GeoM.Translate(p.posX, p.posY)
-
-	playerImage := ebiten.NewImage(imageWidth, imageHeight)
-	playerImage.Fill(p.color)
-	screen.DrawImage(playerImage, op)
-}
-*/
 
 https://gamedev.stackexchange.com/a/29618
 http://higherorderfun.com/blog/2012/05/20/the-guide-to-implementing-2d-platformers/
+
+Ground detection
+https://www.youtube.com/shorts/706pUVt3xwg
+
+gravity
+https://love2d.org/forums/viewtopic.php?p=175824#p175824

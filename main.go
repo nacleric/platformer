@@ -1,11 +1,16 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
+	"io"
 	"log"
+	"os"
 	"strconv"
+
+	// "encoding/xml"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -39,6 +44,8 @@ type Player struct {
 	posY        float64
 	vX          float64
 	vY          float64
+	width       int
+	height      int
 	walkAnim    AnimationData
 	idleAnim    AnimationData
 	direction   string // (LEFT, RIGHT) need to find a better way to represent enums
@@ -47,13 +54,13 @@ type Player struct {
 	spritesheet *ebiten.Image
 }
 
-func DrawPlayer(spritesheet *ebiten.Image) Player {
+func CreatePlayer(spritesheet *ebiten.Image) Player {
 	width, height := 16, 16
 	playerWalkAnimationData := AnimationData{SpriteCell{0, 1, width, height}, 4, 8}
 	playerIdleAnimationData := AnimationData{SpriteCell{0, 0, width, height}, 2, 64}
 
 	// Will need to change screenHeight-height*2 when physics/jump is created
-	p := Player{0, screenHeight - float64(height)*2, 0, 0, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
+	p := Player{0, screenHeight - float64(height)*2, 0, 0, 16, 16, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
 	return p
 }
 
@@ -105,7 +112,7 @@ func (p *Player) RightWalkAnimation(screen *ebiten.Image) {
 	screen.DrawImage(chickenSpritesheet.SubImage(image.Rect(sx, sy, sx+p.walkAnim.sc.frameWidth, sy+p.walkAnim.sc.frameHeight)).(*ebiten.Image), op)
 }
 
-func (p *Player) JumpAnimation(screen *ebiten.Image) {
+func (p *Player) JumpAnimation() {
 	p.posX += p.vX
 	p.posY -= p.vY
 	p.vY += p.gravity
@@ -157,7 +164,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			g.player.RightWalkAnimation(screen)
 			g.player.direction = "RIGHT"
 		case ebiten.KeySpace:
-			g.player.JumpAnimation(screen)
+			g.player.JumpAnimation()
 		default:
 			g.player.vX = 0
 		}
@@ -171,7 +178,9 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 func (g *Game) dbgMode(screen *ebiten.Image) {
 	if g.dbg {
 		for _, entity := range g.entities {
-			vector.DrawFilledRect(screen, float32(entity.posX), float32(entity.posY), 16, 16, color.RGBA{100, 0, 0, 0}, false)
+			w := float32(entity.idleAnim.sc.frameWidth)
+			h := float32(entity.idleAnim.sc.frameHeight)
+			vector.StrokeRect(screen, float32(entity.posX), float32(entity.posY), w, h, 1, color.White, false)
 
 			xCoord := strconv.FormatFloat(entity.posX, 'f', -1, 64)
 			yCoord := strconv.FormatFloat(entity.posY, 'f', -1, 64)
@@ -202,12 +211,74 @@ func LoadSpritesheets() {
 	}
 }
 
+func loadMap() {
+	type Layer struct {
+		Data    []int  `json:"data"`
+		Height  int    `json:"height"`
+		ID      int    `json:"id"`
+		Name    string `json:"name"`
+		Opacity int    `json:"opacity"`
+		Type    string `json:"type"`
+		Visible bool   `json:"visible"`
+		Width   int    `json:"width"`
+		X       int    `json:"x"`
+		Y       int    `json:"y"`
+	}
+
+	type TileSet struct {
+		Columns     int    `json:"columns"`
+		FirstGid    int    `json:"firstgid"`
+		Image       string `json:"image"`
+		ImageHeight int    `json:"imageheight"`
+		ImageWidth  int    `json:"imagewidth"`
+		Margin      int    `json:"margin"`
+		Name        string `json:"name"`
+		Spacing     int    `json:"spacing"`
+		TileCount   int    `json:"tilecount"`
+		TileHeight  int    `json:"tileheight"`
+		TileWidth   int    `json:"tilewidth"`
+	}
+
+	type TileMap struct {
+		CompressionLevel int       `json:"compressionlevel"`
+		Height           int       `json:"height"`
+		Infinite         bool      `json:"infinite"`
+		Layers           []Layer   `json:"layers"`
+		NextLayerId      int       `json:"nextlayerid"`
+		NextObjectId     int       `json:"nextobjectid"`
+		Orientation      string    `json:"orientation"`
+		RenderOrder      string    `json:"renderorder"`
+		TiledVersion     string    `json:"tiledversion"`
+		TiledHeight      int       `json:"tileheight"`
+		TileSets         []TileSet `json:"tileSet"`
+		TileWidth        int       `json:"tilewidth"`
+		Type             string    `json:"type"`
+		Version          string    `json:"version"`
+		Width            int       `json:"width"`
+	}
+
+	mapFile, err := os.Open("./maps/map1.tmj")
+	if err != nil {
+		log.Printf("%s,%s", "Can't find map", err)
+	}
+	defer mapFile.Close()
+
+	byteArr, err := io.ReadAll(mapFile)
+
+	var tm TileMap
+	err = json.Unmarshal(byteArr, &tm)
+	if err != nil {
+		log.Println(err)
+	}
+	fmt.Println(tm.Layers)
+}
+
 func init() {
 	var entities []*Player
 
 	LoadSpritesheets()
 
-	p := DrawPlayer(chickenSpritesheet)
+	p := CreatePlayer(chickenSpritesheet)
 
 	entities = append(entities, &p)
 	game = &Game{player: &p, dbg: true, entities: entities}
@@ -216,6 +287,7 @@ func init() {
 func main() {
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowTitle("Platformer")
+	loadMap()
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
