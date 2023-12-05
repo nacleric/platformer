@@ -10,12 +10,24 @@ import (
 	"os"
 	"strconv"
 
-	// "encoding/xml"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+)
+
+const (
+	screenWidth int  = 480
+	screenHeight int  = 320
+	tileSize     = 16
+)
+
+var (
+	game               *Game
+	chickenSpritesheet *ebiten.Image
+	groundSpritesheet  *ebiten.Image
+	waterSpritesheet   *ebiten.Image
+	spriteScale        = float64(1) // Default 1
 )
 
 type SpriteCell struct {
@@ -55,12 +67,12 @@ type Player struct {
 }
 
 func CreatePlayer(spritesheet *ebiten.Image) Player {
-	width, height := 16, 16
+	width, height := tileSize, tileSize
 	playerWalkAnimationData := AnimationData{SpriteCell{0, 1, width, height}, 4, 8}
 	playerIdleAnimationData := AnimationData{SpriteCell{0, 0, width, height}, 2, 64}
 
 	// Will need to change screenHeight-height*2 when physics/jump is created
-	p := Player{0, screenHeight - float64(height)*2, 0, 0, 16, 16, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
+	p := Player{0, float64(screenHeight) - float64(height)*2, 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
 	return p
 }
 
@@ -119,11 +131,12 @@ func (p *Player) JumpAnimation() {
 }
 
 type Game struct {
-	keys     []ebiten.Key
-	player   *Player
-	count    int
-	dbg      bool
-	entities []*Player
+	keys      []ebiten.Key
+	player    *Player
+	count     int
+	dbg       bool
+	entities  []*Player
+	mapLayers []Layer
 }
 
 func (g *Game) Update() error {
@@ -132,27 +145,9 @@ func (g *Game) Update() error {
 	return nil
 }
 
-func drawGround(screen *ebiten.Image) {
-	sc := SpriteCell{2, 3, 16, 16}
-
-	// Collission box
-	vector.DrawFilledRect(screen, 0, screenHeight-float32(sc.frameHeight), screenWidth, float32(sc.frameHeight), color.RGBA{0, 100, 0, 0}, false)
-
-	x0, y0 := sc.getCol(sc.cellX), sc.getRow(sc.cellY)
-	x1, y1 := x0+sc.frameWidth, y0+sc.frameHeight
-
-	numberOfTiles := screenWidth / sc.frameWidth
-	for i := 0; i < numberOfTiles; i++ {
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(spriteScale, spriteScale)
-		op.GeoM.Translate(float64(i)*float64(sc.frameWidth), screenHeight-float64(sc.frameHeight))
-		screen.DrawImage(groundSpritesheet.SubImage(image.Rect(x0, y0, x1, y1)).(*ebiten.Image), op)
-	}
-}
-
 func (g *Game) Draw(screen *ebiten.Image) {
+	drawMap(g.mapLayers, screen)
 	g.dbgMode(screen)
-	drawGround(screen)
 	g.player.IdleAnimation(screen)
 
 	for _, keyPress := range g.keys {
@@ -171,9 +166,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 }
 
-func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return 320, 240
-}
 
 func (g *Game) dbgMode(screen *ebiten.Image) {
 	if g.dbg {
@@ -190,74 +182,63 @@ func (g *Game) dbgMode(screen *ebiten.Image) {
 	}
 }
 
-const (
-	screenWidth  = 320
-	screenHeight = 240
-)
-
-var (
-	game               *Game
-	chickenSpritesheet *ebiten.Image
-	groundSpritesheet  *ebiten.Image
-	spriteScale        = float64(1) // Default 1
-)
-
 func LoadSpritesheets() {
 	var err error
 	chickenSpritesheet, _, err = ebitenutil.NewImageFromFile("./assets/Characters/chicken_sprites.png")
 	groundSpritesheet, _, err = ebitenutil.NewImageFromFile("./assets/Tilesets/Hills.png")
+	waterSpritesheet, _, err = ebitenutil.NewImageFromFile("./assets/Tilesets/Water.png")
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func loadMap() {
-	type Layer struct {
-		Data    []int  `json:"data"`
-		Height  int    `json:"height"`
-		ID      int    `json:"id"`
-		Name    string `json:"name"`
-		Opacity int    `json:"opacity"`
-		Type    string `json:"type"`
-		Visible bool   `json:"visible"`
-		Width   int    `json:"width"`
-		X       int    `json:"x"`
-		Y       int    `json:"y"`
-	}
+type Layer struct {
+	Data    []int  `json:"data"`
+	Height  int    `json:"height"`
+	ID      int    `json:"id"`
+	Name    string `json:"name"`
+	Opacity int    `json:"opacity"`
+	Type    string `json:"type"`
+	Visible bool   `json:"visible"`
+	Width   int    `json:"width"`
+	X       int    `json:"x"`
+	Y       int    `json:"y"`
+}
 
-	type TileSet struct {
-		Columns     int    `json:"columns"`
-		FirstGid    int    `json:"firstgid"`
-		Image       string `json:"image"`
-		ImageHeight int    `json:"imageheight"`
-		ImageWidth  int    `json:"imagewidth"`
-		Margin      int    `json:"margin"`
-		Name        string `json:"name"`
-		Spacing     int    `json:"spacing"`
-		TileCount   int    `json:"tilecount"`
-		TileHeight  int    `json:"tileheight"`
-		TileWidth   int    `json:"tilewidth"`
-	}
+type TileSet struct {
+	Columns     int    `json:"columns"`
+	FirstGid    int    `json:"firstgid"`
+	Image       string `json:"image"`
+	ImageHeight int    `json:"imageheight"`
+	ImageWidth  int    `json:"imagewidth"`
+	Margin      int    `json:"margin"`
+	Name        string `json:"name"`
+	Spacing     int    `json:"spacing"`
+	TileCount   int    `json:"tilecount"`
+	TileHeight  int    `json:"tileheight"`
+	TileWidth   int    `json:"tilewidth"`
+}
 
-	type TileMap struct {
-		CompressionLevel int       `json:"compressionlevel"`
-		Height           int       `json:"height"`
-		Infinite         bool      `json:"infinite"`
-		Layers           []Layer   `json:"layers"`
-		NextLayerId      int       `json:"nextlayerid"`
-		NextObjectId     int       `json:"nextobjectid"`
-		Orientation      string    `json:"orientation"`
-		RenderOrder      string    `json:"renderorder"`
-		TiledVersion     string    `json:"tiledversion"`
-		TiledHeight      int       `json:"tileheight"`
-		TileSets         []TileSet `json:"tileSet"`
-		TileWidth        int       `json:"tilewidth"`
-		Type             string    `json:"type"`
-		Version          string    `json:"version"`
-		Width            int       `json:"width"`
-	}
+type TileMap struct {
+	CompressionLevel int       `json:"compressionlevel"`
+	Height           int       `json:"height"`
+	Infinite         bool      `json:"infinite"`
+	Layers           []Layer   `json:"layers"`
+	NextLayerId      int       `json:"nextlayerid"`
+	NextObjectId     int       `json:"nextobjectid"`
+	Orientation      string    `json:"orientation"`
+	RenderOrder      string    `json:"renderorder"`
+	TiledVersion     string    `json:"tiledversion"`
+	TiledHeight      int       `json:"tileheight"`
+	TileSets         []TileSet `json:"tileSet"`
+	TileWidth        int       `json:"tilewidth"`
+	Type             string    `json:"type"`
+	Version          string    `json:"version"`
+	Width            int       `json:"width"`
+}
 
-	mapFile, err := os.Open("./maps/map1.tmj")
+func loadMap(file string) []Layer {
+	mapFile, err := os.Open(file)
 	if err != nil {
 		log.Printf("%s,%s", "Can't find map", err)
 	}
@@ -270,7 +251,37 @@ func loadMap() {
 	if err != nil {
 		log.Println(err)
 	}
-	fmt.Println(tm.Layers)
+
+	return tm.Layers
+}
+
+// Note: https://discourse.mapeditor.org/t/array-files-are-one-number-off-from-tile-set/1884/2
+func drawMap(layers []Layer, screen *ebiten.Image) {
+	gPngWidth := groundSpritesheet.Bounds().Dx()
+	wPngWidth := waterSpritesheet.Bounds().Dx()
+
+	gTileCount := gPngWidth / tileSize
+	wTileCount := wPngWidth / tileSize
+
+	xCount := screenWidth / tileSize
+	for _, layer := range layers {
+		for i, globalTileID := range layer.Data {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64((i%xCount)*tileSize), float64((i/xCount)*tileSize))
+			if layer.Name == "water" {
+				tile := globalTileID - 37
+				sx := (tile % wTileCount) * tileSize
+				sy := (tile / wTileCount) * tileSize
+				screen.DrawImage(waterSpritesheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
+			} else if layer.Name == "floor" {
+				tile := globalTileID - 1
+				sx := (tile % gTileCount) * tileSize
+				sy := (tile / gTileCount) * tileSize
+				screen.DrawImage(groundSpritesheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
+
+			}
+		}
+	}
 }
 
 func init() {
@@ -281,13 +292,18 @@ func init() {
 	p := CreatePlayer(chickenSpritesheet)
 
 	entities = append(entities, &p)
-	game = &Game{player: &p, dbg: true, entities: entities}
+	layers := loadMap("./maps/map1.tmj")
+	game = &Game{player: &p, dbg: true, entities: entities, mapLayers: layers}
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	return screenWidth, screenHeight
 }
 
 func main() {
-	ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowSize(screenWidth*2, screenHeight*2)
 	ebiten.SetWindowTitle("Platformer")
-	loadMap()
+
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
