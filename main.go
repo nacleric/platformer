@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	screenWidth int  = 480
-	screenHeight int  = 320
-	tileSize     = 16
+	screenWidth  int = 480
+	screenHeight int = 320
+	tileSize     int = 16
 )
 
 var (
@@ -130,6 +130,13 @@ func (p *Player) JumpAnimation() {
 	p.vY += p.gravity
 }
 
+type Camera struct {
+	width  int
+	height int
+	posX   int
+	posY   int
+}
+
 type Game struct {
 	keys      []ebiten.Key
 	player    *Player
@@ -137,16 +144,20 @@ type Game struct {
 	dbg       bool
 	entities  []*Player
 	mapLayers []Layer
+	camera    Camera
 }
 
 func (g *Game) Update() error {
 	g.keys = inpututil.AppendPressedKeys(g.keys[:0])
 	g.count++
+	g.camera.posX = int(g.player.posX)
+	g.camera.posY = int(g.player.posY)
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	drawMap(g.mapLayers, screen)
+	// g.drawEntireMap(g.mapLayers, screen)
+	g.drawCamera(g.mapLayers, screen)
 	g.dbgMode(screen)
 	g.player.IdleAnimation(screen)
 
@@ -165,7 +176,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 }
-
 
 func (g *Game) dbgMode(screen *ebiten.Image) {
 	if g.dbg {
@@ -256,29 +266,61 @@ func loadMap(file string) []Layer {
 }
 
 // Note: https://discourse.mapeditor.org/t/array-files-are-one-number-off-from-tile-set/1884/2
-func drawMap(layers []Layer, screen *ebiten.Image) {
+func (g *Game) drawEntireMap(layers []Layer, screen *ebiten.Image) {
 	gPngWidth := groundSpritesheet.Bounds().Dx()
 	wPngWidth := waterSpritesheet.Bounds().Dx()
 
-	gTileCount := gPngWidth / tileSize
-	wTileCount := wPngWidth / tileSize
+	gTileCountX := gPngWidth / tileSize
+	wTileCountX := wPngWidth / tileSize
 
 	xCount := screenWidth / tileSize
 	for _, layer := range layers {
 		for i, globalTileID := range layer.Data {
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(float64((i%xCount)*tileSize), float64((i/xCount)*tileSize))
+			// op.GeoM.Translate(-g.player.posX, g.player.posY)
 			if layer.Name == "water" {
 				tile := globalTileID - 37
-				sx := (tile % wTileCount) * tileSize
-				sy := (tile / wTileCount) * tileSize
+				sx := (tile % wTileCountX) * tileSize
+				sy := (tile / wTileCountX) * tileSize
 				screen.DrawImage(waterSpritesheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
 			} else if layer.Name == "floor" {
 				tile := globalTileID - 1
-				sx := (tile % gTileCount) * tileSize
-				sy := (tile / gTileCount) * tileSize
+				sx := (tile % gTileCountX) * tileSize
+				sy := (tile / gTileCountX) * tileSize
 				screen.DrawImage(groundSpritesheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
+			}
+		}
+	}
+}
 
+func (g *Game) drawCamera(layers []Layer, screen *ebiten.Image) {
+	gPngWidth := groundSpritesheet.Bounds().Dx()
+	wPngWidth := waterSpritesheet.Bounds().Dx()
+
+	gTileCountX := gPngWidth / tileSize
+	wTileCountX := wPngWidth / tileSize
+
+	cameraScaleW := float64(screenWidth) / float64(tileSize) / float64(g.camera.width)
+	cameraScaleY := float64(screenHeight) / float64(tileSize) / float64(g.camera.height)
+
+	// xCount := screenWidth / tileSize
+	for _, layer := range layers {
+		for tile, globalTileID := range layer.Data {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64((tile%g.camera.width)*tileSize), float64((tile/g.camera.height)*tileSize))
+			op.GeoM.Scale(cameraScaleW, cameraScaleY)
+			// op.GeoM.Translate(-g.player.posX, g.player.posY)
+			if layer.Name == "water" {
+				localTile := globalTileID - 37
+				sx := (localTile % wTileCountX) * tileSize
+				sy := (localTile / wTileCountX) * tileSize
+				screen.DrawImage(waterSpritesheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
+			} else if layer.Name == "floor" {
+				localTile := globalTileID - 1
+				sx := (localTile % gTileCountX) * tileSize
+				sy := (localTile / gTileCountX) * tileSize
+				screen.DrawImage(groundSpritesheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
 			}
 		}
 	}
@@ -293,7 +335,10 @@ func init() {
 
 	entities = append(entities, &p)
 	layers := loadMap("./maps/map1.tmj")
-	game = &Game{player: &p, dbg: true, entities: entities, mapLayers: layers}
+
+	// c := Camera{width: 100, height: 100, posX: int(p.posX), posY: int(p.posY)}
+	c := Camera{width: 5, height: 5, posX: 0, posY: 0}
+	game = &Game{player: &p, dbg: true, entities: entities, mapLayers: layers, camera: c}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
