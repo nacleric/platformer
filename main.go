@@ -20,6 +20,8 @@ const (
 	screenWidth  int = 480
 	screenHeight int = 320
 	tileSize     int = 16
+	cameraWidth  int = 6
+	cameraHeight int = 5
 )
 
 var (
@@ -67,12 +69,11 @@ type Player struct {
 }
 
 func CreatePlayer(spritesheet *ebiten.Image) Player {
-	width, height := tileSize, tileSize
-	playerWalkAnimationData := AnimationData{SpriteCell{0, 1, width, height}, 4, 8}
-	playerIdleAnimationData := AnimationData{SpriteCell{0, 0, width, height}, 2, 64}
+	playerWalkAnimationData := AnimationData{SpriteCell{0, 1, tileSize, tileSize}, 4, 8}
+	playerIdleAnimationData := AnimationData{SpriteCell{0, 0, tileSize, tileSize}, 2, 64}
 
 	// Will need to change screenHeight-height*2 when physics/jump is created
-	p := Player{0, float64(screenHeight) - float64(height)*2, 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
+	p := Player{0, float64(screenHeight) - float64(tileSize)*2, 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
 	return p
 }
 
@@ -150,8 +151,8 @@ type Game struct {
 func (g *Game) Update() error {
 	g.keys = inpututil.AppendPressedKeys(g.keys[:0])
 	g.count++
-	g.camera.posX = int(g.player.posX)
-	g.camera.posY = int(g.player.posY)
+	// g.camera.posX = int(g.player.posX)
+	// g.camera.posY = int(g.player.posY)
 	return nil
 }
 
@@ -301,16 +302,18 @@ func (g *Game) drawCamera(layers []Layer, screen *ebiten.Image) {
 	gTileCountX := gPngWidth / tileSize
 	wTileCountX := wPngWidth / tileSize
 
+	var cameraOffsetX float64 = float64(g.camera.posX) * float64(tileSize) * -1
+	var cameraOffsetY float64 = float64(g.camera.posY) * float64(tileSize) * -1
+
 	cameraScaleW := float64(screenWidth) / float64(tileSize) / float64(g.camera.width)
 	cameraScaleY := float64(screenHeight) / float64(tileSize) / float64(g.camera.height)
 
-	// xCount := screenWidth / tileSize
+	xCount := screenWidth / tileSize
 	for _, layer := range layers {
-		for tile, globalTileID := range layer.Data {
+		for i, globalTileID := range layer.Data {
 			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64((tile%g.camera.width)*tileSize), float64((tile/g.camera.height)*tileSize))
+			op.GeoM.Translate(float64((i%xCount)*tileSize)+cameraOffsetX, float64((i/xCount)*tileSize)+cameraOffsetY)
 			op.GeoM.Scale(cameraScaleW, cameraScaleY)
-			// op.GeoM.Translate(-g.player.posX, g.player.posY)
 			if layer.Name == "water" {
 				localTile := globalTileID - 37
 				sx := (localTile % wTileCountX) * tileSize
@@ -324,6 +327,7 @@ func (g *Game) drawCamera(layers []Layer, screen *ebiten.Image) {
 			}
 		}
 	}
+
 }
 
 func init() {
@@ -336,8 +340,7 @@ func init() {
 	entities = append(entities, &p)
 	layers := loadMap("./maps/map1.tmj")
 
-	// c := Camera{width: 100, height: 100, posX: int(p.posX), posY: int(p.posY)}
-	c := Camera{width: 5, height: 5, posX: 0, posY: 0}
+	c := Camera{width: cameraWidth, height: cameraHeight, posX: 0, posY: 15}
 	game = &Game{player: &p, dbg: true, entities: entities, mapLayers: layers, camera: c}
 }
 
