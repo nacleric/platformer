@@ -17,11 +17,13 @@ import (
 )
 
 const (
-	screenWidth  int = 480
-	screenHeight int = 320
-	tileSize     int = 16
-	cameraWidth  int = 6
-	cameraHeight int = 5
+	screenWidth  int     = 480
+	screenHeight int     = 320
+	tileSize     int     = 16
+	cameraWidth  int     = 30
+	cameraHeight int     = 20
+	cameraScale  float64 = float64(screenWidth) / float64(tileSize) / float64(cameraWidth)
+	// cameraScale  float64 = 1
 )
 
 var (
@@ -29,7 +31,7 @@ var (
 	chickenSpritesheet *ebiten.Image
 	groundSpritesheet  *ebiten.Image
 	waterSpritesheet   *ebiten.Image
-	spriteScale        = float64(1) // Default 1
+	_spriteScale       = cameraScale
 )
 
 type SpriteCell struct {
@@ -68,22 +70,26 @@ type Player struct {
 	spritesheet *ebiten.Image
 }
 
+func TilePos(position float64) float64 {
+	return position * float64(tileSize)
+}
+
 func CreatePlayer(spritesheet *ebiten.Image) Player {
 	playerWalkAnimationData := AnimationData{SpriteCell{0, 1, tileSize, tileSize}, 4, 8}
 	playerIdleAnimationData := AnimationData{SpriteCell{0, 0, tileSize, tileSize}, 2, 64}
 
 	// Will need to change screenHeight-height*2 when physics/jump is created
-	p := Player{0, float64(screenHeight) - float64(tileSize)*2, 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
+	p := Player{TilePos(0), TilePos(0), 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
 	return p
 }
 
 func (p *Player) IdleAnimation(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	if p.direction == "LEFT" {
-		op.GeoM.Scale(spriteScale*-1, spriteScale)
+		op.GeoM.Scale(cameraScale*-1, cameraScale)
 		op.GeoM.Translate(float64(p.idleAnim.sc.frameWidth), 0)
 	} else if p.direction == "RIGHT" {
-		op.GeoM.Scale(spriteScale, spriteScale)
+		op.GeoM.Scale(cameraScale, cameraScale)
 	}
 
 	op.GeoM.Translate(p.posX, p.posY)
@@ -98,10 +104,12 @@ func (p *Player) IdleAnimation(screen *ebiten.Image) {
 }
 
 func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
-	p.posX -= .5
+	p.posX -= .5 * cameraScale
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(spriteScale*-1, spriteScale)
-	op.GeoM.Translate(p.posX+float64(p.walkAnim.sc.frameWidth), p.posY)
+	op.GeoM.Scale(cameraScale*-1, cameraScale)
+	foo := float64(p.walkAnim.sc.frameWidth) * cameraScale
+
+	op.GeoM.Translate(p.posX+foo, p.posY)
 
 	cellX := p.walkAnim.sc.cellX
 	cellY := p.walkAnim.sc.cellY
@@ -112,9 +120,9 @@ func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
 }
 
 func (p *Player) RightWalkAnimation(screen *ebiten.Image) {
-	p.posX += .5
+	p.posX += .5 * cameraScale
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(spriteScale, spriteScale)
+	op.GeoM.Scale(cameraScale, cameraScale)
 	op.GeoM.Translate(p.posX, p.posY)
 
 	cellX := p.walkAnim.sc.cellX
@@ -305,15 +313,15 @@ func (g *Game) drawCamera(layers []Layer, screen *ebiten.Image) {
 	var cameraOffsetX float64 = float64(g.camera.posX) * float64(tileSize) * -1
 	var cameraOffsetY float64 = float64(g.camera.posY) * float64(tileSize) * -1
 
-	cameraScaleW := float64(screenWidth) / float64(tileSize) / float64(g.camera.width)
-	cameraScaleY := float64(screenHeight) / float64(tileSize) / float64(g.camera.height)
-
 	xCount := screenWidth / tileSize
 	for _, layer := range layers {
 		for i, globalTileID := range layer.Data {
+			// can the XY of a 1d array can be its own function
+			col := float64(i % xCount)
+			row := float64(i / xCount)
 			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64((i%xCount)*tileSize)+cameraOffsetX, float64((i/xCount)*tileSize)+cameraOffsetY)
-			op.GeoM.Scale(cameraScaleW, cameraScaleY)
+			op.GeoM.Translate(TilePos(col)+cameraOffsetX, TilePos(row)+cameraOffsetY)
+			op.GeoM.Scale(float64(cameraScale), float64(cameraScale))
 			if layer.Name == "water" {
 				localTile := globalTileID - 37
 				sx := (localTile % wTileCountX) * tileSize
@@ -340,7 +348,7 @@ func init() {
 	entities = append(entities, &p)
 	layers := loadMap("./maps/map1.tmj")
 
-	c := Camera{width: cameraWidth, height: cameraHeight, posX: 0, posY: 15}
+	c := Camera{width: cameraWidth, height: cameraHeight, posX: 0, posY: 0}
 	game = &Game{player: &p, dbg: true, entities: entities, mapLayers: layers, camera: c}
 }
 
