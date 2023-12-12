@@ -20,10 +20,9 @@ const (
 	screenWidth  int     = 480
 	screenHeight int     = 320
 	tileSize     int     = 16
-	cameraWidth  int     = 30
-	cameraHeight int     = 20
+	cameraWidth  int     = 6
+	cameraHeight int     = 5
 	cameraScale  float64 = float64(screenWidth) / float64(tileSize) / float64(cameraWidth)
-	// cameraScale  float64 = 1
 )
 
 var (
@@ -31,7 +30,6 @@ var (
 	chickenSpritesheet *ebiten.Image
 	groundSpritesheet  *ebiten.Image
 	waterSpritesheet   *ebiten.Image
-	_spriteScale       = cameraScale
 )
 
 type SpriteCell struct {
@@ -87,7 +85,7 @@ func (p *Player) IdleAnimation(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	if p.direction == "LEFT" {
 		op.GeoM.Scale(cameraScale*-1, cameraScale)
-		op.GeoM.Translate(float64(p.idleAnim.sc.frameWidth), 0)
+		op.GeoM.Translate(float64(p.idleAnim.sc.frameWidth)*cameraScale, 0)
 	} else if p.direction == "RIGHT" {
 		op.GeoM.Scale(cameraScale, cameraScale)
 	}
@@ -189,9 +187,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) dbgMode(screen *ebiten.Image) {
 	if g.dbg {
 		for _, entity := range g.entities {
-			w := float32(entity.idleAnim.sc.frameWidth)
-			h := float32(entity.idleAnim.sc.frameHeight)
-			vector.StrokeRect(screen, float32(entity.posX), float32(entity.posY), w, h, 1, color.White, false)
+			w := float32(entity.idleAnim.sc.frameWidth) * float32(cameraScale)
+			h := float32(entity.idleAnim.sc.frameHeight) * float32(cameraScale)
+			vector.StrokeRect(screen, float32(entity.posX), float32(entity.posY), w, h, float32(cameraScale), color.White, false)
 
 			xCoord := strconv.FormatFloat(entity.posX, 'f', -1, 64)
 			yCoord := strconv.FormatFloat(entity.posY, 'f', -1, 64)
