@@ -17,12 +17,19 @@ import (
 )
 
 const (
-	screenWidth  int     = 480
-	screenHeight int     = 320
-	tileSize     int     = 16
-	cameraWidth  int     = 6
-	cameraHeight int     = 5
+	screenWidth  int = 480
+	screenHeight int = 320
+	// Hardcoded values for now but will be dynamic depending on map
+	mapWidth  int = 30
+	mapHeight int = 20
+	tileSize  int = 16
+	// These values will change
+	cameraWidth  int     = 30
+	cameraHeight int     = 20
 	cameraScale  float64 = float64(screenWidth) / float64(tileSize) / float64(cameraWidth)
+
+	startPosX = 0
+	startPosY = 2
 )
 
 var (
@@ -77,7 +84,7 @@ func CreatePlayer(spritesheet *ebiten.Image) Player {
 	playerIdleAnimationData := AnimationData{SpriteCell{0, 0, tileSize, tileSize}, 2, 64}
 
 	// Will need to change screenHeight-height*2 when physics/jump is created
-	p := Player{TilePos(0), TilePos(0), 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
+	p := Player{TilePos(startPosX), TilePos(startPosY), 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
 	return p
 }
 
@@ -98,7 +105,6 @@ func (p *Player) IdleAnimation(screen *ebiten.Image) {
 	i := (game.count / p.idleAnim.frameFrequency) % p.idleAnim.frameCount
 	sx, sy := p.idleAnim.sc.getCol(cellX)+i*p.idleAnim.sc.frameWidth, p.idleAnim.sc.getRow(cellY)
 	screen.DrawImage(p.spritesheet.SubImage(image.Rect(sx, sy, sx+p.idleAnim.sc.frameWidth, sy+p.idleAnim.sc.frameHeight)).(*ebiten.Image), op)
-
 }
 
 func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
@@ -163,7 +169,6 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	// g.drawEntireMap(g.mapLayers, screen)
 	g.drawCamera(g.mapLayers, screen)
 	g.dbgMode(screen)
 	g.player.IdleAnimation(screen)
@@ -176,6 +181,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		case ebiten.KeyRight:
 			g.player.RightWalkAnimation(screen)
 			g.player.direction = "RIGHT"
+		case ebiten.KeyJ:
+			g.camera.posX -= 1
+		case ebiten.KeyL:
+			g.camera.posX += 1
+		case ebiten.KeyI:
+			g.camera.posY -= 1
+		case ebiten.KeyK:
+			g.camera.posY += 1
 		case ebiten.KeySpace:
 			g.player.JumpAnimation()
 		default:
@@ -186,6 +199,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 func (g *Game) dbgMode(screen *ebiten.Image) {
 	if g.dbg {
+		dbgCamera := fmt.Sprintf("Camera Position: (%d, %d)", g.camera.posX, g.camera.posY)
+		ebitenutil.DebugPrintAt(screen, dbgCamera, 0, 0)
 		for _, entity := range g.entities {
 			w := float32(entity.idleAnim.sc.frameWidth) * float32(cameraScale)
 			h := float32(entity.idleAnim.sc.frameHeight) * float32(cameraScale)
@@ -273,34 +288,6 @@ func loadMap(file string) []Layer {
 }
 
 // Note: https://discourse.mapeditor.org/t/array-files-are-one-number-off-from-tile-set/1884/2
-func (g *Game) drawEntireMap(layers []Layer, screen *ebiten.Image) {
-	gPngWidth := groundSpritesheet.Bounds().Dx()
-	wPngWidth := waterSpritesheet.Bounds().Dx()
-
-	gTileCountX := gPngWidth / tileSize
-	wTileCountX := wPngWidth / tileSize
-
-	xCount := screenWidth / tileSize
-	for _, layer := range layers {
-		for i, globalTileID := range layer.Data {
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64((i%xCount)*tileSize), float64((i/xCount)*tileSize))
-			// op.GeoM.Translate(-g.player.posX, g.player.posY)
-			if layer.Name == "water" {
-				tile := globalTileID - 37
-				sx := (tile % wTileCountX) * tileSize
-				sy := (tile / wTileCountX) * tileSize
-				screen.DrawImage(waterSpritesheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
-			} else if layer.Name == "floor" {
-				tile := globalTileID - 1
-				sx := (tile % gTileCountX) * tileSize
-				sy := (tile / gTileCountX) * tileSize
-				screen.DrawImage(groundSpritesheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
-			}
-		}
-	}
-}
-
 func (g *Game) drawCamera(layers []Layer, screen *ebiten.Image) {
 	gPngWidth := groundSpritesheet.Bounds().Dx()
 	wPngWidth := waterSpritesheet.Bounds().Dx()
