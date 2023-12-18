@@ -29,7 +29,7 @@ const (
 	cameraScale  float64 = float64(screenWidth) / float64(tileSize) / float64(cameraWidth)
 
 	startPosX = 0
-	startPosY = 2
+	startPosY = 18
 )
 
 var (
@@ -84,11 +84,11 @@ func CreatePlayer(spritesheet *ebiten.Image) Player {
 	playerIdleAnimationData := AnimationData{SpriteCell{0, 0, tileSize, tileSize}, 2, 64}
 
 	// Will need to change screenHeight-height*2 when physics/jump is created
-	p := Player{TilePos(startPosX), TilePos(startPosY), 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
+	p := Player{TilePos(startPosX * cameraScale), TilePos(startPosY * cameraScale), 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
 	return p
 }
 
-func (p *Player) IdleAnimation(screen *ebiten.Image) {
+func (p *Player) IdleAnimation(screen *ebiten.Image, offSetX, offSetY float64) {
 	op := &ebiten.DrawImageOptions{}
 	if p.direction == "LEFT" {
 		op.GeoM.Scale(cameraScale*-1, cameraScale)
@@ -97,7 +97,7 @@ func (p *Player) IdleAnimation(screen *ebiten.Image) {
 		op.GeoM.Scale(cameraScale, cameraScale)
 	}
 
-	op.GeoM.Translate(p.posX, p.posY)
+	op.GeoM.Translate(p.posX+offSetX, p.posY+offSetY)
 
 	cellX := p.idleAnim.sc.cellX
 	cellY := p.idleAnim.sc.cellY
@@ -107,13 +107,13 @@ func (p *Player) IdleAnimation(screen *ebiten.Image) {
 	screen.DrawImage(p.spritesheet.SubImage(image.Rect(sx, sy, sx+p.idleAnim.sc.frameWidth, sy+p.idleAnim.sc.frameHeight)).(*ebiten.Image), op)
 }
 
-func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
+func (p *Player) LeftWalkAnimation(screen *ebiten.Image, offSetX, offSetY float64) {
 	p.posX -= .5 * cameraScale
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(cameraScale*-1, cameraScale)
-	foo := float64(p.walkAnim.sc.frameWidth) * cameraScale
+	shiftSpriteRight := float64(p.walkAnim.sc.frameWidth) * cameraScale
 
-	op.GeoM.Translate(p.posX+foo, p.posY)
+	op.GeoM.Translate(p.posX+shiftSpriteRight+offSetX, p.posY+offSetY)
 
 	cellX := p.walkAnim.sc.cellX
 	cellY := p.walkAnim.sc.cellY
@@ -123,11 +123,11 @@ func (p *Player) LeftWalkAnimation(screen *ebiten.Image) {
 	screen.DrawImage(chickenSpritesheet.SubImage(image.Rect(sx, sy, sx+p.walkAnim.sc.frameWidth, sy+p.walkAnim.sc.frameHeight)).(*ebiten.Image), op)
 }
 
-func (p *Player) RightWalkAnimation(screen *ebiten.Image) {
+func (p *Player) RightWalkAnimation(screen *ebiten.Image, offSetX, offSetY float64) {
 	p.posX += .5 * cameraScale
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(cameraScale, cameraScale)
-	op.GeoM.Translate(p.posX, p.posY)
+	op.GeoM.Translate(p.posX+offSetX, p.posY+offSetY)
 
 	cellX := p.walkAnim.sc.cellX
 	cellY := p.walkAnim.sc.cellY
@@ -163,32 +163,55 @@ type Game struct {
 func (g *Game) Update() error {
 	g.keys = inpututil.AppendPressedKeys(g.keys[:0])
 	g.count++
-	// g.camera.posX = int(g.player.posX)
-	// g.camera.posY = int(g.player.posY)
+	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+		fmt.Println("key D just pressed")
+		if g.dbg {
+			g.dbg = false
+		} else {
+			g.dbg = true
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
+		g.camera.posX = int(g.player.posX)/(tileSize*int(cameraScale)) - (mapWidth / 2)
+		g.camera.posY = int(g.player.posY)/(tileSize*int(cameraScale)) - (mapHeight / 2)
+		fmt.Println(cameraScale)
+	}
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.drawCamera(g.mapLayers, screen)
-	g.dbgMode(screen)
-	g.player.IdleAnimation(screen)
+	cameraOffsetX, cameraOffsetY := g.drawCamera(g.mapLayers, screen)
+	cameraOffsetX *= cameraScale
+	cameraOffsetY *= cameraScale
+	if g.dbg {
+		g.dbgMode(screen, cameraOffsetX, cameraOffsetY)
+	}
+	g.player.IdleAnimation(screen, cameraOffsetX, cameraOffsetY)
 
 	for _, keyPress := range g.keys {
 		switch keyPress {
 		case ebiten.KeyLeft:
-			g.player.LeftWalkAnimation(screen)
+			g.player.LeftWalkAnimation(screen, cameraOffsetX, cameraOffsetY)
 			g.player.direction = "LEFT"
 		case ebiten.KeyRight:
-			g.player.RightWalkAnimation(screen)
+			g.player.RightWalkAnimation(screen, cameraOffsetX, cameraOffsetY)
 			g.player.direction = "RIGHT"
 		case ebiten.KeyJ:
-			g.camera.posX -= 1
+			if g.camera.posX > 0 {
+				g.camera.posX -= 1
+			}
 		case ebiten.KeyL:
-			g.camera.posX += 1
+			if g.camera.posX < (mapWidth - cameraWidth) {
+				g.camera.posX += 1
+			}
 		case ebiten.KeyI:
-			g.camera.posY -= 1
+			if g.camera.posY > 0 {
+				g.camera.posY -= 1
+			}
 		case ebiten.KeyK:
-			g.camera.posY += 1
+			if g.camera.height < (mapHeight - cameraHeight) {
+				g.camera.posY += 1
+			}
 		case ebiten.KeySpace:
 			g.player.JumpAnimation()
 		default:
@@ -197,20 +220,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 }
 
-func (g *Game) dbgMode(screen *ebiten.Image) {
-	if g.dbg {
-		dbgCamera := fmt.Sprintf("Camera Position: (%d, %d)", g.camera.posX, g.camera.posY)
-		ebitenutil.DebugPrintAt(screen, dbgCamera, 0, 0)
-		for _, entity := range g.entities {
-			w := float32(entity.idleAnim.sc.frameWidth) * float32(cameraScale)
-			h := float32(entity.idleAnim.sc.frameHeight) * float32(cameraScale)
-			vector.StrokeRect(screen, float32(entity.posX), float32(entity.posY), w, h, float32(cameraScale), color.White, false)
+func (g *Game) dbgMode(screen *ebiten.Image, offsetX, offsetY float64) {
+	ebitenutil.DebugPrintAt(screen, "DEBUG MODE: true (D to toggle)", int(TilePos(0)), int(TilePos(0)))
+	dbgCamera := fmt.Sprintf("Camera Position: (%d, %d)", g.camera.posX, g.camera.posY)
+	ebitenutil.DebugPrintAt(screen, dbgCamera, int(TilePos(0)), int(TilePos(1)))
 
-			xCoord := strconv.FormatFloat(entity.posX, 'f', -1, 64)
-			yCoord := strconv.FormatFloat(entity.posY, 'f', -1, 64)
-			dbgXY := fmt.Sprintf("(%s, %s)", xCoord, yCoord)
-			ebitenutil.DebugPrintAt(screen, dbgXY, int(entity.posX)+16, int(entity.posY)-16)
-		}
+	dbgCameraOffset := fmt.Sprintf("Camera Offset: (%d, %d)", int(offsetX), int(offsetY))
+	ebitenutil.DebugPrintAt(screen, dbgCameraOffset, int(TilePos(0)), int(TilePos(2)))
+
+	dbgPlayerPos := fmt.Sprintf("Player Position: (%f, %f)", g.player.posX, g.player.posY)
+	ebitenutil.DebugPrintAt(screen, dbgPlayerPos, int(TilePos(0)), int(TilePos(3)))
+
+	for _, entity := range g.entities {
+		w := float32(entity.idleAnim.sc.frameWidth) * float32(cameraScale)
+		h := float32(entity.idleAnim.sc.frameHeight) * float32(cameraScale)
+		vector.StrokeRect(screen, float32(entity.posX)+float32(offsetX), float32(entity.posY)+float32(offsetY), w, h, float32(cameraScale), color.White, false)
+
+		xCoord := strconv.FormatFloat(entity.posX, 'f', -1, 64)
+		yCoord := strconv.FormatFloat(entity.posY, 'f', -1, 64)
+		dbgXY := fmt.Sprintf("(%s, %s)", xCoord, yCoord)
+		ebitenutil.DebugPrintAt(screen, dbgXY, int(entity.posX)+int(offsetX)+tileSize, int(entity.posY)+int(offsetY)-tileSize)
 	}
 }
 
@@ -288,15 +317,18 @@ func loadMap(file string) []Layer {
 }
 
 // Note: https://discourse.mapeditor.org/t/array-files-are-one-number-off-from-tile-set/1884/2
-func (g *Game) drawCamera(layers []Layer, screen *ebiten.Image) {
+func (g *Game) drawCamera(layers []Layer, screen *ebiten.Image) (float64, float64) {
 	gPngWidth := groundSpritesheet.Bounds().Dx()
 	wPngWidth := waterSpritesheet.Bounds().Dx()
 
 	gTileCountX := gPngWidth / tileSize
 	wTileCountX := wPngWidth / tileSize
 
-	var cameraOffsetX float64 = float64(g.camera.posX) * float64(tileSize) * -1
-	var cameraOffsetY float64 = float64(g.camera.posY) * float64(tileSize) * -1
+	var cameraOffsetX float64
+	var cameraOffsetY float64
+
+	cameraOffsetX = float64(g.camera.posX) * float64(tileSize) * -1
+	cameraOffsetY = float64(g.camera.posY) * float64(tileSize) * -1
 
 	xCount := screenWidth / tileSize
 	for _, layer := range layers {
@@ -320,7 +352,7 @@ func (g *Game) drawCamera(layers []Layer, screen *ebiten.Image) {
 			}
 		}
 	}
-
+	return cameraOffsetX, cameraOffsetY
 }
 
 func init() {
