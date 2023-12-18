@@ -37,6 +37,8 @@ var (
 	chickenSpritesheet *ebiten.Image
 	groundSpritesheet  *ebiten.Image
 	waterSpritesheet   *ebiten.Image
+
+	isCameraFixed bool = true
 )
 
 type SpriteCell struct {
@@ -146,8 +148,8 @@ func (p *Player) JumpAnimation() {
 type Camera struct {
 	width  int
 	height int
-	posX   int
-	posY   int
+	posX   float64
+	posY   float64
 }
 
 type Game struct {
@@ -164,18 +166,35 @@ func (g *Game) Update() error {
 	g.keys = inpututil.AppendPressedKeys(g.keys[:0])
 	g.count++
 	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-		fmt.Println("key D just pressed")
 		if g.dbg {
 			g.dbg = false
 		} else {
 			g.dbg = true
 		}
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
-		g.camera.posX = int(g.player.posX)/(tileSize*int(cameraScale)) - (mapWidth / 2)
-		g.camera.posY = int(g.player.posY)/(tileSize*int(cameraScale)) - (mapHeight / 2)
-		fmt.Println(cameraScale)
+
+	if !g.dbg {
+		isCameraFixed = true
 	}
+
+	if isCameraFixed {
+		g.camera.posX = g.player.posX/(float64(tileSize)*cameraScale) - float64(mapWidth/2)
+		g.camera.posY = g.player.posY/(float64(tileSize)*cameraScale) - float64(mapHeight/2)
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
+		g.camera.posX = g.player.posX/(float64(tileSize)*cameraScale) - float64(mapWidth/2)
+		g.camera.posY = g.player.posY/(float64(tileSize)*cameraScale) - float64(mapHeight/2)
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
+		if isCameraFixed && g.dbg {
+			isCameraFixed = false
+		} else {
+			isCameraFixed = true
+		}
+	}
+
 	return nil
 }
 
@@ -201,7 +220,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				g.camera.posX -= 1
 			}
 		case ebiten.KeyL:
-			if g.camera.posX < (mapWidth - cameraWidth) {
+			if g.camera.posX < float64(mapWidth-cameraWidth) {
 				g.camera.posX += 1
 			}
 		case ebiten.KeyI:
@@ -222,14 +241,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 func (g *Game) dbgMode(screen *ebiten.Image, offsetX, offsetY float64) {
 	ebitenutil.DebugPrintAt(screen, "DEBUG MODE: true (D to toggle)", int(TilePos(0)), int(TilePos(0)))
-	dbgCamera := fmt.Sprintf("Camera Position: (%d, %d)", g.camera.posX, g.camera.posY)
+	xCoordCamera := strconv.FormatFloat(g.camera.posX, 'f', -1, 64)
+	yCoordCamera := strconv.FormatFloat(g.camera.posY, 'f', -1, 64)
+	dbgCamera := fmt.Sprintf("Camera Position: (%s, %s)", xCoordCamera, yCoordCamera)
 	ebitenutil.DebugPrintAt(screen, dbgCamera, int(TilePos(0)), int(TilePos(1)))
 
 	dbgCameraOffset := fmt.Sprintf("Camera Offset: (%d, %d)", int(offsetX), int(offsetY))
 	ebitenutil.DebugPrintAt(screen, dbgCameraOffset, int(TilePos(0)), int(TilePos(2)))
 
+	dbgCameraLock := fmt.Sprintf("Camera Lock: %t", isCameraFixed)
+	ebitenutil.DebugPrintAt(screen, dbgCameraLock, int(TilePos(0)), int(TilePos(3)))
+
 	dbgPlayerPos := fmt.Sprintf("Player Position: (%f, %f)", g.player.posX, g.player.posY)
-	ebitenutil.DebugPrintAt(screen, dbgPlayerPos, int(TilePos(0)), int(TilePos(3)))
+	ebitenutil.DebugPrintAt(screen, dbgPlayerPos, int(TilePos(0)), int(TilePos(4)))
 
 	for _, entity := range g.entities {
 		w := float32(entity.idleAnim.sc.frameWidth) * float32(cameraScale)
