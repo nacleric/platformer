@@ -30,6 +30,8 @@ const (
 
 	startPosX = 0
 	startPosY = 18
+
+	jumpVelocity = -12
 )
 
 var (
@@ -37,7 +39,7 @@ var (
 	chickenSpritesheet *ebiten.Image
 	groundSpritesheet  *ebiten.Image
 	waterSpritesheet   *ebiten.Image
-
+	
 	isCameraFixed bool = true
 )
 
@@ -86,7 +88,20 @@ func CreatePlayer(spritesheet *ebiten.Image) Player {
 	playerIdleAnimationData := AnimationData{SpriteCell{0, 0, tileSize, tileSize}, 2, 64}
 
 	// Will need to change screenHeight-height*2 when physics/jump is created
-	p := Player{TilePos(startPosX * cameraScale), TilePos(startPosY * cameraScale), 0, 0, tileSize, tileSize, playerWalkAnimationData, playerIdleAnimationData, "RIGHT", 1, true, spritesheet}
+	p := Player{
+		posX:        TilePos(startPosX * cameraScale),
+		posY:        TilePos(startPosY * cameraScale),
+		vX:          0,
+		vY:          0,
+		width:       tileSize,
+		height:      tileSize,
+		walkAnim:    playerWalkAnimationData,
+		idleAnim:    playerIdleAnimationData,
+		direction:   "RIGHT",
+		gravity:     1,
+		onGround:    true,
+		spritesheet: spritesheet,
+	}
 	return p
 }
 
@@ -140,9 +155,11 @@ func (p *Player) RightWalkAnimation(screen *ebiten.Image, offSetX, offSetY float
 }
 
 func (p *Player) JumpAnimation() {
-	p.posX += p.vX
-	p.posY -= p.vY
+	// p.posX += p.vX
 	p.vY += p.gravity
+	p.posY += p.vY
+	fmt.Println(p.posY)
+	// p.vY += p.gravity
 }
 
 type Camera struct {
@@ -195,6 +212,19 @@ func (g *Game) Update() error {
 		}
 	}
 
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) && g.player.vY == 0 {
+		g.player.vY = jumpVelocity
+	}
+
+	g.player.vY += g.player.gravity
+	g.player.posY += g.player.vY
+	
+	// Will need to replace this with actual collission detection
+	if g.player.posY > TilePos(18) {
+		g.player.posY = TilePos(18)
+		g.player.vY = 0
+	}
+
 	return nil
 }
 
@@ -220,7 +250,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				g.camera.posX -= 1
 			}
 		case ebiten.KeyL:
-			if g.camera.posX < float64(mapWidth-cameraWidth) {
+			if int(g.camera.posX) < (mapWidth - cameraWidth) {
 				g.camera.posX += 1
 			}
 		case ebiten.KeyI:
@@ -228,11 +258,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				g.camera.posY -= 1
 			}
 		case ebiten.KeyK:
-			if g.camera.height < (mapHeight - cameraHeight) {
+			if int(g.camera.height) < (mapHeight - cameraHeight) {
 				g.camera.posY += 1
 			}
-		case ebiten.KeySpace:
-			g.player.JumpAnimation()
 		default:
 			g.player.vX = 0
 		}
