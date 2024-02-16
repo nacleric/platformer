@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"io"
 	"log"
+	"math"
 	"os"
 	"strconv"
 
@@ -19,10 +20,12 @@ import (
 const (
 	screenWidth  int = 480
 	screenHeight int = 320
+
 	// Hardcoded values for now but will be dynamic depending on map
 	mapWidth  int = 30
 	mapHeight int = 20
 	tileSize  int = 16
+
 	// These values will change
 	cameraWidth  int     = 30
 	cameraHeight int     = 20
@@ -39,7 +42,7 @@ var (
 	chickenSpritesheet *ebiten.Image
 	groundSpritesheet  *ebiten.Image
 	waterSpritesheet   *ebiten.Image
-	
+
 	isCameraFixed bool = true
 )
 
@@ -98,7 +101,7 @@ func CreatePlayer(spritesheet *ebiten.Image) Player {
 		walkAnim:    playerWalkAnimationData,
 		idleAnim:    playerIdleAnimationData,
 		direction:   "RIGHT",
-		gravity:     1,
+		gravity:     0,
 		onGround:    true,
 		spritesheet: spritesheet,
 	}
@@ -154,12 +157,65 @@ func (p *Player) RightWalkAnimation(screen *ebiten.Image, offSetX, offSetY float
 	screen.DrawImage(chickenSpritesheet.SubImage(image.Rect(sx, sy, sx+p.walkAnim.sc.frameWidth, sy+p.walkAnim.sc.frameHeight)).(*ebiten.Image), op)
 }
 
-func (p *Player) JumpAnimation() {
-	// p.posX += p.vX
-	p.vY += p.gravity
-	p.posY += p.vY
-	fmt.Println(p.posY)
-	// p.vY += p.gravity
+func (g *Game) TopCollision() bool {
+	fmt.Println("top")
+	isCollision := false
+	i1 := g.getColliderIndex(g.player.posX, g.player.posY)
+	i2 := g.getColliderIndex(g.player.posX+16, g.player.posY)
+
+	if g.collisionLayer[i1] != 0 || g.collisionLayer[i2] != 0 {
+		isCollision = true
+	}
+
+	return isCollision
+}
+
+func (g *Game) BottomCollision() bool {
+	fmt.Println("bottom")
+	isCollision := false
+	i1 := g.getColliderIndex(g.player.posX, g.player.posY+15)
+	i2 := g.getColliderIndex(g.player.posX+16, g.player.posY+15)
+	if g.collisionLayer[i1] != 0 || g.collisionLayer[i2] != 0 {
+		isCollision = true
+	}
+
+	return isCollision
+}
+
+func (g *Game) LeftCollision() bool {
+	fmt.Println("left")
+	isCollision := false
+	i1 := g.getColliderIndex(g.player.posX, g.player.posY)
+	i2 := g.getColliderIndex(g.player.posX, g.player.posY+16)
+	if g.collisionLayer[i1] != 0 && g.collisionLayer[i2] != 0 {
+		isCollision = true
+	}
+
+	return isCollision
+}
+
+func (g *Game) RightCollision() bool {
+	fmt.Println("right")
+	isCollision := false
+	i1 := g.getColliderIndex(g.player.posX+11, g.player.posY)
+	i2 := g.getColliderIndex(g.player.posX+11, g.player.posY+11)
+
+	if g.collisionLayer[i1] != 0 && g.collisionLayer[i2] != 0 {
+		isCollision = true
+	}
+
+	return isCollision
+}
+
+func (g *Game) getColliderIndex(x float64, y float64) int {
+	col := x / 16
+	row := y / 16
+	// Formula to access 1D array like it's 2D
+	// i = x + width * y
+	index := int(col) + mapWidth*int(row)
+	fmt.Printf("col:%f, row:%f, index:%d \n", col, row, index)
+	fmt.Println(index)
+	return index
 }
 
 type Camera struct {
@@ -170,13 +226,14 @@ type Camera struct {
 }
 
 type Game struct {
-	keys      []ebiten.Key
-	player    *Player
-	count     int
-	dbg       bool
-	entities  []*Player
-	mapLayers []Layer
-	camera    Camera
+	keys           []ebiten.Key
+	player         *Player
+	count          int
+	dbg            bool
+	entities       []*Player
+	mapLayers      []Layer
+	collisionLayer []int
+	camera         Camera
 }
 
 func (g *Game) Update() error {
@@ -212,17 +269,46 @@ func (g *Game) Update() error {
 		}
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeySpace) && g.player.vY == 0 {
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) && g.player.vY == 0 && g.player.onGround {
 		g.player.vY = jumpVelocity
 	}
 
 	g.player.vY += g.player.gravity
 	g.player.posY += g.player.vY
-	
-	// Will need to replace this with actual collission detection
-	if g.player.posY > TilePos(18) {
-		g.player.posY = TilePos(18)
+
+	if g.TopCollision() {
+		g.player.posY = TilePos(math.Floor(g.player.posY/16)) + TilePos(1)
 		g.player.vY = 0
+	}
+
+	if g.BottomCollision() {
+		g.player.posY = TilePos(math.Floor(g.player.posY / 16))
+		g.player.vY = 0
+	}
+
+	if g.player.vX <= 0 {
+		if g.LeftCollision() {
+			g.player.posX = TilePos(math.Floor(g.player.posX/16)) + TilePos(1)
+			g.player.vX = 0
+			fmt.Println("Left Collider triggered")
+		}
+	} else {
+		if g.RightCollision() {
+			fmt.Println("Right Collider triggered")
+			g.player.posX = TilePos(math.Floor(g.player.posX / 16))
+			g.player.vX = 0
+		}
+	}
+
+	// Will need to replace this with actual collission detection
+	// if g.player.posY > TilePos(18) {
+	// 	g.player.posY = TilePos(18)
+	// 	g.player.vY = 0
+	// }
+
+	i := g.getColliderIndex(g.player.posX, g.player.posY)
+	if g.collisionLayer[i] != 0 {
+		fmt.Println(g.collisionLayer[i])
 	}
 
 	return nil
@@ -242,9 +328,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		case ebiten.KeyLeft:
 			g.player.LeftWalkAnimation(screen, cameraOffsetX, cameraOffsetY)
 			g.player.direction = "LEFT"
+			g.player.vX = -1
 		case ebiten.KeyRight:
 			g.player.RightWalkAnimation(screen, cameraOffsetX, cameraOffsetY)
 			g.player.direction = "RIGHT"
+			g.player.vX = 1
 		case ebiten.KeyJ:
 			if g.camera.posX > 0 {
 				g.camera.posX -= 1
@@ -280,17 +368,18 @@ func (g *Game) dbgMode(screen *ebiten.Image, offsetX, offsetY float64) {
 	dbgCameraLock := fmt.Sprintf("Camera Lock: %t", isCameraFixed)
 	ebitenutil.DebugPrintAt(screen, dbgCameraLock, int(TilePos(0)), int(TilePos(3)))
 
-	dbgPlayerPos := fmt.Sprintf("Player Position: (%f, %f)", g.player.posX, g.player.posY)
+	dbgPlayerPos := fmt.Sprintf("Player Pos (Pixel Units): (%f, %f)", g.player.posX, g.player.posY)
 	ebitenutil.DebugPrintAt(screen, dbgPlayerPos, int(TilePos(0)), int(TilePos(4)))
+
+	dbgPlayerVelocity := fmt.Sprintf("Player V: %f)", g.player.vX)
+	ebitenutil.DebugPrintAt(screen, dbgPlayerVelocity, int(TilePos(0)), int(TilePos(5)))
 
 	for _, entity := range g.entities {
 		w := float32(entity.idleAnim.sc.frameWidth) * float32(cameraScale)
 		h := float32(entity.idleAnim.sc.frameHeight) * float32(cameraScale)
 		vector.StrokeRect(screen, float32(entity.posX)+float32(offsetX), float32(entity.posY)+float32(offsetY), w, h, float32(cameraScale), color.White, false)
 
-		xCoord := strconv.FormatFloat(entity.posX, 'f', -1, 64)
-		yCoord := strconv.FormatFloat(entity.posY, 'f', -1, 64)
-		dbgXY := fmt.Sprintf("(%s, %s)", xCoord, yCoord)
+		dbgXY := fmt.Sprintf("(%d, %d)", int(entity.posX)/16, int(entity.posY)/16)
 		ebitenutil.DebugPrintAt(screen, dbgXY, int(entity.posX)+int(offsetX)+tileSize, int(entity.posY)+int(offsetY)-tileSize)
 	}
 }
@@ -416,9 +505,9 @@ func init() {
 
 	entities = append(entities, &p)
 	layers := loadMap("./maps/map1.tmj")
-
 	c := Camera{width: cameraWidth, height: cameraHeight, posX: 0, posY: 0}
-	game = &Game{player: &p, dbg: true, entities: entities, mapLayers: layers, camera: c}
+	game = &Game{player: &p, dbg: true, entities: entities, mapLayers: layers, collisionLayer: layers[1].Data, camera: c}
+	fmt.Println(game.collisionLayer)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
