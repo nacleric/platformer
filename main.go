@@ -32,7 +32,7 @@ const (
 	cameraScale  float64 = float64(screenWidth) / float64(tileSize) / float64(cameraWidth)
 
 	startPosX = 0
-	startPosY = 18
+	startPosY = 15
 
 	jumpVelocity = -12
 )
@@ -101,7 +101,7 @@ func CreatePlayer(spritesheet *ebiten.Image) Player {
 		walkAnim:    playerWalkAnimationData,
 		idleAnim:    playerIdleAnimationData,
 		direction:   "RIGHT",
-		gravity:     0,
+		gravity:     1,
 		onGround:    true,
 		spritesheet: spritesheet,
 	}
@@ -186,8 +186,8 @@ func (g *Game) LeftCollision() bool {
 	fmt.Println("left")
 	isCollision := false
 	i1 := g.getColliderIndex(g.player.posX, g.player.posY)
-	i2 := g.getColliderIndex(g.player.posX, g.player.posY+16)
-	if g.collisionLayer[i1] != 0 && g.collisionLayer[i2] != 0 {
+	i2 := g.getColliderIndex(g.player.posX, g.player.posY+15)
+	if g.collisionLayer[i1] != 0 || g.collisionLayer[i2] != 0 {
 		isCollision = true
 	}
 
@@ -197,10 +197,10 @@ func (g *Game) LeftCollision() bool {
 func (g *Game) RightCollision() bool {
 	fmt.Println("right")
 	isCollision := false
-	i1 := g.getColliderIndex(g.player.posX+11, g.player.posY)
-	i2 := g.getColliderIndex(g.player.posX+11, g.player.posY+11)
+	i1 := g.getColliderIndex(g.player.posX+15, g.player.posY)
+	i2 := g.getColliderIndex(g.player.posX+10, g.player.posY+10)
 
-	if g.collisionLayer[i1] != 0 && g.collisionLayer[i2] != 0 {
+	if g.collisionLayer[i1] != 0 || g.collisionLayer[i2] != 0 {
 		isCollision = true
 	}
 
@@ -286,18 +286,21 @@ func (g *Game) Update() error {
 		g.player.vY = 0
 	}
 
-	if g.player.vX <= 0 {
-		if g.LeftCollision() {
-			g.player.posX = TilePos(math.Floor(g.player.posX/16)) + TilePos(1)
-			g.player.vX = 0
-			fmt.Println("Left Collider triggered")
-		}
-	} else {
-		if g.RightCollision() {
-			fmt.Println("Right Collider triggered")
-			g.player.posX = TilePos(math.Floor(g.player.posX / 16))
-			g.player.vX = 0
-		}
+	if g.LeftCollision() && g.BottomCollision() {
+		g.player.posX = TilePos(math.Floor(g.player.posX/16)) + TilePos(1)
+		g.player.vX = 0
+		g.player.posY = TilePos(math.Floor(g.player.posY/16)) - TilePos(1)
+		g.player.vY = 0
+		fmt.Println("Left Collider triggered REEEEEEEEEEEEEEEEEEEEEEEEEE")
+		// panic("REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE")
+	}
+	if g.RightCollision() && g.BottomCollision() {
+		fmt.Println("Right Collider triggered REEEEEEEEEEEEEEEEEEEEEEEEE")
+		g.player.posX = TilePos(math.Floor(g.player.posX/16)) - TilePos(1)
+		g.player.vX = 0
+		g.player.posY = TilePos(math.Floor(g.player.posY / 16)) // No idea why I dont need to subtrace 16px
+		g.player.vY = 0
+		// panic("REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE")
 	}
 
 	// Will need to replace this with actual collission detection
@@ -447,6 +450,9 @@ func loadMap(file string) []Layer {
 	defer mapFile.Close()
 
 	byteArr, err := io.ReadAll(mapFile)
+	if err != nil {
+		log.Println(err)
+	}
 
 	var tm TileMap
 	err = json.Unmarshal(byteArr, &tm)
